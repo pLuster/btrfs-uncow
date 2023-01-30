@@ -5,8 +5,13 @@
 #include <sys/ioctl.h>
 #include <linux/fs.h>
 
+#ifdef DEBUGBLOCKSIZE
+const size_t block_size = DEBUGBLOCKSIZE;
+const size_t copy_size = DEBUGCOPYSIZE;
+#else
 const size_t block_size = 1024*1024*1024;
 const size_t copy_size = 32*1024*1024;
+#endif
 void *copy_buffer;
 
 int copy(int dst, int src, size_t len)
