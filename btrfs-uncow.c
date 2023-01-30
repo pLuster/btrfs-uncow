@@ -17,7 +17,9 @@ void *copy_buffer;
 int copy(int dst, int src, size_t len)
 {
 	while (len > 0) {
-		ssize_t in = read(src, copy_buffer, copy_size);
+		ssize_t l = len < copy_size ? len : copy_size;
+		ssize_t in = read(src, copy_buffer, l);
+		//printf("in=%d", in);
 		if (in < 0) {
 			perror("read src");
 			exit(EXIT_FAILURE);
@@ -91,7 +93,14 @@ int main(int argc, char *argv[])
 	}
 
 	while (pos > 0) {
-		pos = block_size > pos ? 0 : pos - block_size;
+		size_t l;
+		if (block_size > pos) {
+			l = pos;
+			pos = 0;
+		} else {
+			pos = pos - block_size;
+			l = block_size;
+		}
 		printf("Copying from position %ld...   \n", pos);
 
 		if (lseek(src, pos, SEEK_SET) == -1) {
@@ -103,7 +112,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 
-		copy(dst, src, block_size);
+		copy(dst, src, l);
 		if (fdatasync(dst) == -1) {
 			perror("datasync dst");
 			exit(EXIT_FAILURE);
