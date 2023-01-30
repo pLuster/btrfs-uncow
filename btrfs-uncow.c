@@ -25,9 +25,13 @@ int copy(int dst, int src, size_t len)
 		if (in < 0) {
 			perror("read src");
 			exit(EXIT_FAILURE);
+		} else if (in == 0) {
+			// If in == 0 and len > 0 we are not reading
+			// all the data. This is dangerous and unexpected.
+			// We cannot tolarate, because the ftruncate()
+			// called in main assumes that all data is copied
+			assert(0);
 		}
-		else if (in == 0)
-			return 0;
 
 		ssize_t	out = write(dst, copy_buffer, in);
 		if (out < 0) {
