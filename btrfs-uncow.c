@@ -33,12 +33,17 @@ int copy(int dst, int src, size_t len)
 			assert(0);
 		}
 
-		ssize_t	out = write(dst, copy_buffer, in);
-		if (out < 0) {
-			perror("write dst");
-			exit(EXIT_FAILURE);
+		ssize_t i = 0;
+		while (in) {
+			ssize_t	out = write(dst, copy_buffer + i, in);
+			if (out < 0) {
+				perror("write dst");
+				exit(EXIT_FAILURE);
+			}
+			len -= out;
+			i += out;
+			in -= out;
 		}
-		len -= out;
 	}
 	return 0;
 }
