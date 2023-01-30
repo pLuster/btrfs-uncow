@@ -13,7 +13,6 @@ int copy(int dst, int src, size_t len)
 {
 	while (len > 0) {
 		ssize_t in = read(src, copy_buffer, copy_size);
-		//printf("in=%d", in);
 		if (in < 0) {
 			perror("read src");
 			exit(EXIT_FAILURE);
@@ -22,7 +21,6 @@ int copy(int dst, int src, size_t len)
 			return 0;
 
 		ssize_t	out = write(dst, copy_buffer, in);
-		//printf("out=%d", out);
 		if (out < 0) {
 			perror("write dst");
 			exit(EXIT_FAILURE);
@@ -40,14 +38,14 @@ int main(int argc, char *argv[])
 	}
 
 	int src, dst;
-	if ((src = open(argv[1], O_DSYNC|O_RDWR)) == -1) {
+	if ((src = open(argv[1], O_RDWR)) == -1) {
 		fprintf(stderr, "Failed to open source '%s': ", argv[1]);
 		perror(NULL);
 		exit(EXIT_FAILURE);
 	}
 
 	// copy mode from src?
-	if ((dst = open(argv[2], O_CREAT|O_DSYNC|O_RDWR, S_IRUSR|S_IWUSR)) == -1) {
+	if ((dst = open(argv[2], O_CREAT|O_RDWR, S_IRUSR|S_IWUSR)) == -1) {
 		fprintf(stderr, "Failed to open destination '%s': ", argv[2]);
 		perror(NULL);
 		exit(EXIT_FAILURE);
@@ -95,16 +93,23 @@ int main(int argc, char *argv[])
 			perror("seek src");
 			exit(EXIT_FAILURE);
 		}
-
 		if (lseek(dst, pos, SEEK_SET) == -1) {
 			perror("seek dst");
 			exit(EXIT_FAILURE);
 		}
 
 		copy(dst, src, block_size);
+		if (fdatasync(dst) == -1) {
+			perror("datasync dst");
+			exit(EXIT_FAILURE);
+		}
 
 		if (ftruncate(src, pos) == -1) {
 			perror("truncate src");
+			exit(EXIT_FAILURE);
+		}
+		if (fdatasync(src) == -1) {
+			perror("datasync src");
 			exit(EXIT_FAILURE);
 		}
 	}
