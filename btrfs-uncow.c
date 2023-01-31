@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <linux/fs.h>
 #include <errno.h>
@@ -121,6 +122,17 @@ void copy2(int dst, int src, size_t len2)
 	return;
 }
 
+mode_t get_mode(int fd)
+{
+	struct stat statbuf;
+
+	if (fstat(fd, &statbuf) == -1) {
+		perror("fstat");
+		exit(EXIT_FAILURE);
+	}
+	return statbuf.st_mode;
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 3) {
@@ -135,8 +147,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	// copy mode from src?
-	if ((dst = open(argv[2], O_CREAT|O_RDWR, S_IRUSR|S_IWUSR)) == -1) {
+	if ((dst = open(argv[2], O_CREAT|O_RDWR, get_mode(src))) == -1) {
 		fprintf(stderr, "Failed to open destination '%s': ", argv[2]);
 		perror(NULL);
 		exit(EXIT_FAILURE);
