@@ -9,6 +9,8 @@
 #include <linux/fs.h>
 #include <errno.h>
 #include <assert.h>
+#include <getopt.h>
+#include <stdbool.h>
 
 #ifdef DEBUGBLOCKSIZE
 const size_t block_size = DEBUGBLOCKSIZE;
@@ -18,6 +20,15 @@ const size_t block_size = 1024*1024*1024;
 const size_t copy_size = 32*1024*1024;
 #endif
 void *copy_buffer;
+
+enum { OPT_SYNCFS = 256, OPT_HELP, OPT_VERSION };
+static struct option const long_options[] =
+{
+	{"no-syncfs", no_argument, NULL, OPT_SYNCFS},
+	{"help", no_argument, NULL, OPT_HELP},
+	{"version", no_argument, NULL, OPT_VERSION},
+	{NULL, 0, NULL, 0}
+};
 
 void copy(int dst, int src, size_t len)
 {
@@ -135,20 +146,39 @@ mode_t get_mode(int fd)
 
 int main(int argc, char *argv[])
 {
-	if (argc < 3) {
-		fprintf(stderr, "%s <src> <dst>\n", argv[0]);
+	bool fssync = true;
+
+	while (true) {
+		int opt = getopt_long(argc, argv, "", long_options, NULL);
+		if (opt == -1)
+			break;
+
+		switch (opt) {
+		case OPT_SYNCFS:
+			fssync = false;
+			break;
+		case OPT_HELP: break;
+		case OPT_VERSION: break;
+		}
+	}
+
+	if (argc < optind+2) {
+		fprintf(stderr, "%s <source> <destination>\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
+	char *srcname = argv[optind];
+	char *dstname = argv[optind+1];
+
 	int src, dst;
-	if ((src = open(argv[1], O_RDWR)) == -1) {
-		fprintf(stderr, "Failed to open source '%s': ", argv[1]);
+	if ((src = open(srcname, O_RDWR)) == -1) {
+		fprintf(stderr, "Failed to open source '%s': ", srcname);
 		perror(NULL);
 		exit(EXIT_FAILURE);
 	}
 
-	if ((dst = open(argv[2], O_CREAT|O_RDWR, get_mode(src))) == -1) {
-		fprintf(stderr, "Failed to open destination '%s': ", argv[2]);
+	if ((dst = open(dstname, O_CREAT|O_RDWR, get_mode(src))) == -1) {
+		fprintf(stderr, "Failed to open destination '%s': ", dstname);
 		perror(NULL);
 		exit(EXIT_FAILURE);
 	}
@@ -167,7 +197,7 @@ int main(int argc, char *argv[])
 	if (pos == 0) {
 		int attr = FS_NOCOW_FL;
 		if (ioctl(dst, FS_IOC_SETFLAGS, &attr) == -1) {
-			fprintf(stderr, "Failed to set NoCoW flag on '%s': ", argv[2]);
+			fprintf(stderr, "Failed to set NoCoW flag on '%s': ", dstname);
 			perror(NULL);
 			//exit(EXIT_FAILURE);
 		}
@@ -176,10 +206,10 @@ int main(int argc, char *argv[])
 			perror("truncate dst");
 			exit(EXIT_FAILURE);
 		}
-		printf("Created new file '%s'\n", argv[2]);
+		printf("Created new file '%s'\n", dstname);
 	}
 	else {
-		printf("Continuing with existing file '%s'\n", argv[2]);
+		printf("Continuing with existing file '%s'\n", dstname);
 	}
 
 	if ((pos = lseek(src, 0, SEEK_END)) == -1) {
@@ -225,10 +255,16 @@ int main(int argc, char *argv[])
 
 	fsync(dst);
 	close(dst);
-	printf("Copying done! Syncing source fs which can take a while if the CoW:ed file was heavily fragmented...\n");
-	syncfs(src);
+
+	if (fssync) {
+		printf("Syncing source filesystem which can take a while if the CoW:ed file was heavily fragmented.\n");
+		syncfs(src);
+	}
+	else
+		fsync(src);
 	close(src);
-	printf("Removing emptied '%s'.\n", argv[1]);
-	remove(argv[1]);
+
+	printf("Done! Removing emptied '%s'.\n", srcname);
+	remove(srcname);
 	exit(EXIT_SUCCESS);
 }
