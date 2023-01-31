@@ -47,10 +47,10 @@ void copy(int dst, int src, size_t len)
 			in -= out;
 		}
 	}
-	return 0;
+	return;
 }
 
-int copy2(int dst, int src, size_t len2)
+void copy2(int dst, int src, size_t len2)
 {
 
 	off_t cur_pos = lseek(src, 0, SEEK_CUR);
@@ -83,7 +83,7 @@ int copy2(int dst, int src, size_t len2)
 			if (data_pos < 0 && errno == ENXIO) {
 				// No further data, end the copy.
 				// dst was alredy extended so no further extension is needed.
-				return 0;
+				return;
 			}
 			if (data_pos < 0) {
 				perror("lseek SEEK_DATA");
