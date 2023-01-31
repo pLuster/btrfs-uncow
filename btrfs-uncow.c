@@ -130,7 +130,7 @@ mode_t get_mode(int fd)
 		perror("fstat");
 		exit(EXIT_FAILURE);
 	}
-	return statbuf.st_mode;
+	return statbuf.st_mode & 0777;
 }
 
 int main(int argc, char *argv[])
