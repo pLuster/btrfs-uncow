@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -16,7 +18,7 @@ const size_t copy_size = 32*1024*1024;
 #endif
 void *copy_buffer;
 
-int copy(int dst, int src, size_t len)
+void copy(int dst, int src, size_t len)
 {
 	while (len > 0) {
 		ssize_t l = len < copy_size ? len : copy_size;
@@ -116,7 +118,7 @@ int copy2(int dst, int src, size_t len2)
 		len2 -= len;
 		cur_pos += len;
 	}
-	return 0;
+	return;
 }
 
 int main(int argc, char *argv[])
@@ -210,7 +212,12 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	printf("Copying done! Removing '%s'.\n", argv[1]);
+	fsync(dst);
+	close(dst);
+	printf("Copying done! Syncing source fs which can take a while if the CoW:ed file was heavily fragmented...\n");
+	syncfs(src);
+	close(src);
+	printf("Removing emptied '%s'.\n", argv[1]);
 	remove(argv[1]);
 	exit(EXIT_SUCCESS);
 }
