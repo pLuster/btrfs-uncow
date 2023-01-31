@@ -6,28 +6,117 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <linux/fs.h>
+#include <errno.h>
+#include <assert.h>
 
+#ifdef DEBUGBLOCKSIZE
+const size_t block_size = DEBUGBLOCKSIZE;
+const size_t copy_size = DEBUGCOPYSIZE;
+#else
 const size_t block_size = 1024*1024*1024;
 const size_t copy_size = 32*1024*1024;
+#endif
 void *copy_buffer;
 
 void copy(int dst, int src, size_t len)
 {
 	while (len > 0) {
-		ssize_t in = read(src, copy_buffer, copy_size);
+		ssize_t l = len < copy_size ? len : copy_size;
+		ssize_t in = read(src, copy_buffer, l);
+		//printf("in=%ld\n", in);
 		if (in < 0) {
 			perror("read src");
 			exit(EXIT_FAILURE);
+		} else if (in == 0) {
+			// If in == 0 and len > 0 we are not reading
+			// all the data. This is dangerous and unexpected.
+			// We cannot tolarate, because the ftruncate()
+			// called in main assumes that all data is copied
+			assert(0);
 		}
-		else if (in == 0)
-			return;
 
-		ssize_t	out = write(dst, copy_buffer, in);
-		if (out < 0) {
-			perror("write dst");
-			exit(EXIT_FAILURE);
+		ssize_t i = 0;
+		while (in) {
+			ssize_t	out = write(dst, copy_buffer + i, in);
+			if (out < 0) {
+				perror("write dst");
+				exit(EXIT_FAILURE);
+			}
+			len -= out;
+			i += out;
+			in -= out;
 		}
-		len -= out;
+	}
+	return 0;
+}
+
+int copy2(int dst, int src, size_t len2)
+{
+
+	off_t cur_pos = lseek(src, 0, SEEK_CUR);
+	if (cur_pos < 0) {
+		perror("lseek SEEK_CUR");
+		exit(EXIT_FAILURE);
+	}
+
+	off_t hole_pos = -1;
+	while (len2 > 0) {
+		size_t len;
+
+		// Looking for an hole is an expensive operation. Do it only if needed.
+		if (hole_pos < 0) {
+			hole_pos = lseek(src, cur_pos, SEEK_HOLE);
+			if (hole_pos < 0) {
+				perror("lseek SEEK_CUR");
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		if (hole_pos == cur_pos) {
+			// We are at the beginning of an hole, skip it
+			//fprintf(stderr, "skip from=%ld; len2=%ld\n", cur_pos, len2);
+
+			// NB: it is assumed that after "len2" bytes there is
+			// only the end of src file; so we don't need to check
+			// where data_pos ends.
+			off_t data_pos = lseek(src, cur_pos, SEEK_DATA);
+			if (data_pos < 0 && errno == ENXIO) {
+				// No further data, end the copy.
+				// dst was alredy extended so no further extension is needed.
+				return 0;
+			}
+			if (data_pos < 0) {
+				perror("lseek SEEK_DATA");
+				exit(EXIT_FAILURE);
+			}
+			if (lseek(dst, data_pos, SEEK_SET) < 0)  {
+				perror("lseek SEEK_SET");
+				exit(EXIT_FAILURE);
+			}
+			len2 -= (data_pos - cur_pos);
+			cur_pos = data_pos;
+
+			// Continue the loop and search anothe hole
+			hole_pos = -1;
+			continue;
+		} else  {
+			// Copy the data up to the next hole ...
+			len = hole_pos - cur_pos;
+
+			// ... but only up to the current block size
+			if (len > len2)
+				len = len2;
+
+			// Move back to cur_pos
+			if (lseek(src, cur_pos, SEEK_SET) < 0) {
+				perror("lseek SEEK_CUR");
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		copy(dst, src, len);
+		len2 -= len;
+		cur_pos += len;
 	}
 	return;
 }
@@ -88,7 +177,14 @@ int main(int argc, char *argv[])
 	}
 
 	while (pos > 0) {
-		pos = block_size > pos ? 0 : pos - block_size;
+		size_t l;
+		if (block_size > pos) {
+			l = pos;
+			pos = 0;
+		} else {
+			pos = pos - block_size;
+			l = block_size;
+		}
 		printf("Copying from position %ld...   \n", pos);
 
 		if (lseek(src, pos, SEEK_SET) == -1) {
@@ -100,7 +196,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 
-		copy(dst, src, block_size);
+		copy2(dst, src, l);
 		if (fdatasync(dst) == -1) {
 			perror("datasync dst");
 			exit(EXIT_FAILURE);
