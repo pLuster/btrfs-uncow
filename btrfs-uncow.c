@@ -35,7 +35,7 @@ void copy(int dst, int src, size_t len)
 	while (len > 0) {
 		ssize_t l = len < copy_size ? len : copy_size;
 		ssize_t in = read(src, copy_buffer, l);
-		//printf("in=%ld\n", in);
+
 		if (in < 0) {
 			perror("read src");
 			exit(EXIT_FAILURE);
@@ -75,17 +75,17 @@ void copy2(int dst, int src, size_t len2)
 	while (len2 > 0) {
 		size_t len;
 
-		// Looking for an hole is an expensive operation. Do it only if needed.
+		// Looking for a hole is an expensive operation. Do it only if needed.
 		if (hole_pos < 0) {
 			hole_pos = lseek(src, cur_pos, SEEK_HOLE);
 			if (hole_pos < 0) {
-				perror("lseek SEEK_CUR");
+				perror("lseek SEEK_HOLE");
 				exit(EXIT_FAILURE);
 			}
 		}
 
 		if (hole_pos == cur_pos) {
-			// We are at the beginning of an hole, skip it
+			// We are at the beginning of a hole, skip it
 			//fprintf(stderr, "skip from=%ld; len2=%ld\n", cur_pos, len2);
 
 			// NB: it is assumed that after "len2" bytes there is
@@ -108,7 +108,7 @@ void copy2(int dst, int src, size_t len2)
 			len2 -= (data_pos - cur_pos);
 			cur_pos = data_pos;
 
-			// Continue the loop and search anothe hole
+			// Continue the loop and search for another hole
 			hole_pos = -1;
 			continue;
 		} else  {
