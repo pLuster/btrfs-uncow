@@ -1,4 +1,8 @@
+# Make target
 btrfs-uncow
+
+# VIM swap file
+[._]*sw[a-p]
 
 # Prerequisites
 *.d
