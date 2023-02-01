@@ -199,7 +199,8 @@ int main(int argc, char *argv[])
 		if (ioctl(dst, FS_IOC_SETFLAGS, &attr) == -1) {
 			fprintf(stderr, "Failed to set NoCoW flag on '%s': ", dstname);
 			perror(NULL);
-			//exit(EXIT_FAILURE);
+			fprintf(stderr, "Are you using a Copy-on-Write filesystem?\n");
+			exit(EXIT_FAILURE);
 		}
 
 		if (ftruncate(dst, lseek(src, 0, SEEK_END)) == -1) {
